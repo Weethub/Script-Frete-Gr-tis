@@ -1,0 +1,344 @@
+<!-- BARRA FRETE GRATIS -->
+<style>
+    :root {
+        --msg-frete-gratis-cor-principal: #1e90ff;
+        --msg-frete-gratis-cor-secundaria: #0c005e;
+        --msg-frete-gratis-cor-fundo-clara: #ffffff;
+        --msg-frete-gratis-cor-texto: #333333;
+    }
+</style>
+<script>
+    $(document).ready( function(){
+
+        var FAIXA_CEP = [
+            {'inicial': 1000000, 'final': 19999999, 'valor': 159,90}, // SÃO PAULO
+            {'inicial': 20000000, 'final': 28999999, 'valor': 199,90}, // RIO DE JANEIRO
+            {'inicial': 29000000, 'final': 29999999, 'valor': 199,90}, // ESPIRITO SANTO
+            {'inicial': 30000000, 'final': 39999999, 'valor': 159,90}, // MINAS GERAIS
+	    {'inicial': 80000000, 'final': 99999999, 'valor': 199,90}, // SUL
+            {'inicial': 40000000, 'final': 69999999, 'valor': 199,90}, // NORDESTE - NORTE
+            {'inicial': 76800000, 'final': 77999999, 'valor': 199,90}, // RO - TO
+            {'inicial': 70000000, 'final': 76799999, 'valor': 199,90}, // CENTRO-OESTE 1
+            {'inicial': 78000000, 'final': 79999999, 'valor': 199,90}, // CENTRO-OESTE 2
+        ]
+
+        var SHOW_BAR = true;
+        var SHOW_MSG_NO_CEP = true;
+        var MSG_NO_CEP_TITLE = "Quer ganhar frete grátis?";
+        var MSG_NO_CEP_TEXT = "Informe o seu CEP abaixo para saber quanto falta!";
+        var MSG_FALTA_X = "Faltam <b></b> para ganhar <br/><strong>FRETE GRÁTIS</strong>";
+        var MSG_SUCCESS = "<strong>parabéns,</strong><br/> você ganhou FRETE GRÁTIS!";
+        var MSG_SEM_FAIXA_CEP = "Não temos frete grátis para sua região :(";
+
+        var ELEMENTOS = {
+            'subtotal': '',
+            'caixa-frete': '[data-store="cart-subtotal"]',
+        }
+
+        if( LS.theme.code == 'atlantico' ){
+            ELEMENTOS['caixa-frete'] = '.cart-row-shipping';
+        }
+
+
+        if( !$(ELEMENTOS['caixa-frete']).length ){
+            if( LS.template == 'cart' ){
+                ELEMENTOS['caixa-frete'] = '#cart-shipping-container';
+            }else{
+                ELEMENTOS['caixa-frete'] = '.js-cart-subtotal';
+            }
+        }
+
+        function freteGratis(){
+            try {
+
+                var showMessage = function(){
+                    var $input = $('[data-store="cart-form"] [data-store="shipping-calculator"] .js-shipping-input');
+                    var cep = '';
+                    if( $input.length && $input.val() != '' ){
+                        cep = $input.val();
+                        cep = cep.replace(/\./g, '').replace(/\-/g, '');
+                        cep = $.trim(cep);
+                        cep = parseInt(cep);
+                    }
+
+                    var $msgNoCep = $('.lb-shipping-msg-no-cep');
+                    if( (cep == '' || cep == 0 ) && !$msgNoCep.length && SHOW_MSG_NO_CEP ){
+                        $('.lb-shipping-bar').remove();
+                        $(ELEMENTOS['caixa-frete']).before(`
+                            <div class="lb-shipping-msg-no-cep">
+                                <p><b>${MSG_NO_CEP_TITLE}</b></p>
+                                <p>${MSG_NO_CEP_TEXT}</p>
+                            </div>
+                        `);
+                    }else if(cep != '' && cep != 0 ){
+                        if( $msgNoCep.length ){
+                            $msgNoCep.remove();
+                        }
+                        var $progress = $('.lb-shipping-bar');
+                        var $subtotal = ( $('[data-component="cart.subtotal"], [data-store="cart-subtotal"]').length )? $('[data-component="cart.subtotal"], [data-store="cart-subtotal"]').eq(0) : $('.js-cart-subtotal, .subtotal-price').eq(0);
+                        var subtotal = $subtotal.text();
+
+                        if( $subtotal.find('.js-cart-without-discount span').length ){
+                            subtotal = $subtotal.find('.js-cart-without-discount span').text();
+                        }
+
+                        subtotal = $.trim(subtotal);
+                        subtotal = parseInt(subtotal.replace(/\D+/g, ''))/100;
+
+                        var valor_min_frete_gratis = null;
+                        for( var x = 0; x < FAIXA_CEP.length; x++ ){
+                            var faixaCEP = FAIXA_CEP[x];
+                            if( faixaCEP['inicial'] <= cep && faixaCEP['final'] > cep ){
+                                if( valor_min_frete_gratis == null || faixaCEP['valor'] < valor_min_frete_gratis ){
+                                    valor_min_frete_gratis = faixaCEP['valor'];
+                                }
+                            }
+                        }
+
+                        if( valor_min_frete_gratis == null ){
+                            $('.lb-shipping-msg-no-cep').remove();
+                            $('.lb-shipping-bar').remove();
+                            $(ELEMENTOS['caixa-frete']).before(`
+                                <div class="lb-shipping-msg-no-cep">
+                                    <p>${MSG_SEM_FAIXA_CEP}</p>
+                                </div>
+                            `);
+                            return false;
+                        }
+
+                        var valor_restante = valor_min_frete_gratis - subtotal;
+                        var valor_restante_print = '';
+                        var pctRestante = (100 - (valor_restante / valor_min_frete_gratis * 100));
+
+                        console.log(valor_min_frete_gratis, subtotal, valor_restante, pctRestante)
+
+                        if( valor_restante > 0 ){
+                            valor_restante_print = valor_restante.toLocaleString('pt-br',{style: 'currency', currency: 'BRL'});
+                        }else{
+                            valor_restante_print = '';
+                        }
+
+                        if( !$progress.length ){
+                            $(ELEMENTOS['caixa-frete']).before(`
+                                <div class="lb-shipping-bar" style="display: none;"">
+                                    <div class="lb-shipping-bar-progress">
+                                        <div class="lb-shipping-bar-progress-bg"></div>
+                                        <div class="lb-shipping-bar-progress-icon">
+                                            <svg class="icon-inline icon-sm svg-icon-text" xmlns="https://www.w3.org/2000/svg" viewBox="0 0 640 512"><path d="M632 384h-24V275.9c0-16.8-6.8-33.3-18.8-45.2l-83.9-83.9c-11.8-12-28.3-18.8-45.2-18.8H416V78.6c0-25.7-22.2-46.6-49.4-46.6H49.4C22.2 32 0 52.9 0 78.6v290.8C0 395.1 22.2 416 49.4 416h16.2c-1.1 5.2-1.6 10.5-1.6 16 0 44.2 35.8 80 80 80s80-35.8 80-80c0-5.5-.6-10.8-1.6-16h195.2c-1.1 5.2-1.6 10.5-1.6 16 0 44.2 35.8 80 80 80s80-35.8 80-80c0-5.5-.6-10.8-1.6-16H632c4.4 0 8-3.6 8-8v-16c0-4.4-3.6-8-8-8zM460.1 160c8.4 0 16.7 3.4 22.6 9.4l83.9 83.9c.8.8 1.1 1.9 1.8 2.8H416v-96h44.1zM144 480c-26.5 0-48-21.5-48-48s21.5-48 48-48 48 21.5 48 48-21.5 48-48 48zm63.6-96C193 364.7 170 352 144 352s-49 12.7-63.6 32h-31c-9.6 0-17.4-6.5-17.4-14.6V78.6C32 70.5 39.8 64 49.4 64h317.2c9.6 0 17.4 6.5 17.4 14.6V384H207.6zM496 480c-26.5 0-48-21.5-48-48s21.5-48 48-48 48 21.5 48 48-21.5 48-48 48zm0-128c-26.1 0-49 12.7-63.6 32H416v-96h160v96h-16.4c-14.6-19.3-37.5-32-63.6-32z"></path></svg>
+                                        </div>
+                                    </div>
+                                    <div class="lb-shipping-bar-total-value"></div>
+
+                                    <p class="lb-shipping-bar-msg-progress">${MSG_FALTA_X}</p>
+                                    <p class="lb-shipping-bar-msg-success" style="display: none;">${MSG_SUCCESS}</p>
+                                </div>
+                            `);
+                        }
+
+                        if( valor_restante > 0 ){
+                            $('.lb-shipping-bar-progress-icon').css('left', `${pctRestante}%`);
+                            $('.lb-shipping-bar-progress-icon').css('margin-left', `${(pctRestante>5)?'-42px':'0'}`);
+                            $('.lb-shipping-bar-msg-progress > b').html(valor_restante_print);
+                            $('.lb-shipping-bar-progress').removeClass('complete');
+                            $('.lb-shipping-bar-msg-progress').show();
+                            $('.lb-shipping-bar-msg-success').hide();
+                        }else{
+                            $('.lb-shipping-bar-progress').addClass('complete');
+                            $('.lb-shipping-bar-msg-progress').hide();
+                            $('.lb-shipping-bar-msg-success').show();
+
+                        }
+                        $('.lb-shipping-bar').show();
+                    }
+                }
+
+                showMessage();
+                $(document).ajaxStop(function() {
+                    setTimeout( function(){
+                        showMessage();
+                    }, 1000);
+                });
+                $("body").on('DOMSubtreeModified', ".js-cart-total, [data-store='cart-total']", function() {
+                    showMessage();
+                });
+
+            } catch (error) {
+                console.erro('Error exec func freteGratis', error);
+            }
+        }
+
+        if( SHOW_BAR ){
+            $('.js-ship-free-rest').remove();
+            freteGratis();
+        }
+    });
+</script>
+<style>
+    .lb-shipping-msg-no-cep{
+        padding: 20px 15px;
+        position: relative;
+        border-radius: 20px;
+        margin-bottom: 20px;
+        border: 3px solid var(--msg-frete-gratis-cor-principal);
+        background-color: var(--msg-frete-gratis-cor-fundo-clara);
+        float: left;
+        width: 100%;
+        box-sizing: border-box;
+    }
+    .lb-shipping-msg-no-cep:after{
+        content: "";
+        border: 10px solid transparent;
+        border-top-color: var(--msg-frete-gratis-cor-principal);
+        padding: 0;
+        border-radius: 0;
+        position: absolute;
+        bottom: -20px;
+        left: 40px;
+        padding: 0;
+    }
+    .lb-shipping-msg-no-cep p{
+        font-weight: 500;
+        font-size: 15px;
+        color: var(--msg-frete-gratis-cor-texto);
+        letter-spacing: 0.07px;
+        line-height: 26px;
+        margin: 0;
+        text-align: center;
+    }
+    .lb-shipping-msg-no-cep p b{
+        font-weight: 600;
+        font-size: 20px;
+        color: var(--msg-frete-gratis-cor-texto);
+        letter-spacing: 0.09px;
+        line-height: 26px;
+    }
+    .lb-shipping-bar{
+        display: block;
+        width: 100%;
+        margin: 20px 0;
+        float: left;
+    }
+    .lb-shipping-bar > p{
+        text-align: center;
+        font-weight: bold;
+        font-size: 17px;
+        color: var(--msg-frete-gratis-cor-texto);
+        letter-spacing: 0.08px;
+        line-height: 22px;
+    }
+    .lb-shipping-bar > p > strong{
+        color: var(--msg-frete-gratis-cor-principal);
+        font-size: 23px;
+        line-height: 26px;
+    }
+    .lb-shipping-bar-progress{
+        display: block;
+        overflow: hidden;
+        position: relative;
+        padding: 25px 0;
+    }
+    .lb-shipping-bar-progress-bg{
+        display: block;
+        height: 14px;
+        width: 100%;
+        border-radius: 7px;
+        background: var(--msg-frete-gratis-cor-secundaria);
+        background: -moz-linear-gradient(90deg, var(--msg-frete-gratis-cor-secundaria) 0%, var(--msg-frete-gratis-cor-principal) 100%);
+        background: -webkit-linear-gradient(90deg, var(--msg-frete-gratis-cor-secundaria) 0%, var(--msg-frete-gratis-cor-principal) 100%);
+        background: linear-gradient(90deg, var(--msg-frete-gratis-cor-secundaria) 0%, var(--msg-frete-gratis-cor-principal) 100%);
+        filter: progid:DXImageTransform.Microsoft.gradient(startColorstr="var(--msg-frete-gratis-cor-secundaria)",endColorstr="var(--msg-frete-gratis-cor-principal)",GradientType=1);
+    }
+    .lb-shipping-bar-progress-icon{
+        position: absolute;
+        top: 4px;
+        left: 0;
+        background: var(--msg-frete-gratis-cor-principal);
+        width: 52px;
+        height: 52px;
+        border-radius: 100%;
+        border: 3px solid #fff;
+    }
+    .lb-shipping-bar-progress-icon:before {
+        content: '';
+        position: absolute;
+        display: block;
+        width: 160%;
+        height: 160%;
+        box-sizing: border-box;
+        margin-left: -30%;
+        margin-top: -30%;
+        border-radius: 100%;
+        background-color: var(--msg-frete-gratis-cor-principal);
+        animation: pulse-ring 1.25s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+        z-index: 1;
+    }
+
+    .lb-shipping-bar-progress-icon:after {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 0;
+        display: block;
+        width: 100%;
+        height: 100%;
+        background-color: var(--msg-frete-gratis-cor-principal);
+        border-radius: 100%;
+        box-shadow: 0 0 8px rgba(0,0,0,.3);
+        animation: pulse-dot 1.25s cubic-bezier(0.455, 0.03, 0.515, 0.955) -.4s infinite;
+        z-index: 2;
+    }
+
+    .lb-shipping-bar-progress.complete .lb-shipping-bar-progress-bg{
+        background: var(--msg-frete-gratis-cor-principal);
+    }
+    .lb-shipping-bar-progress.complete .lb-shipping-bar-progress-icon{
+        background: var(--msg-frete-gratis-cor-principal);
+        left: 100%!important;
+        margin-left: -52px!important;
+    }
+    .lb-shipping-bar-progress-icon svg{
+        display: block;
+        margin: 0 auto;
+        width: 30px;
+        height: 47px;
+        position: relative;
+        z-index: 3;
+    }
+    .lb-shipping-bar-progress-icon svg, .lb-shipping-bar-progress-icon svg path{
+        color: #fff;
+        fill: #fff;
+    }
+    @media( max-width: 991px ){
+        .lb-popup-18-content img{
+            max-width: 150px;
+        }
+        .lb-popup-18-content h2{
+            font-size: 24px;
+        }
+        .lb-popup-18-content p{
+            font-size: 15px;
+        }
+        .lb-popup-18-content .btn-primary{
+            margin: 20px auto 5px;
+            height: 40px;
+            padding: 7px 20px;
+            line-height: 28px;
+        }
+    }
+    @media( max-width: 767px ){
+        .js-category-controls{
+            top: 124px!important;
+        }
+    }
+
+    @keyframes pulse-ring {
+        0% { transform: scale(.33); }
+        80%, 100% { opacity: 0; }
+    }
+
+    @keyframes pulse-dot {
+        0% { transform: scale(.8); }
+        50% { transform: scale(1); }
+        100% { transform: scale(.8); }
+    }
+</style>
